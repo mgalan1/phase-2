@@ -21,10 +21,12 @@ extern int start2 (char *);
 //If we don’t define this in phase2.c we will get complaints from the compiler
 void (*sys_vec[MAXSYSCALLS])(sysargs *args); 
 
+void clock_handler2(int dev, void *unit);
 
 /* -------------------------- Globals ------------------------------------- */
-
 int debugflag2 = 0;
+int nextMailboxID = 0;
+int clock;
 
 /* the mail boxes */
 mail_box MailBoxTable[MAXMBOX];
@@ -64,6 +66,9 @@ int start1(char *arg)
 
    check_kernel_mode("start1");
 
+   clock = MBoxCreate(0, 50);
+   int_vec[CLOCK_DEV] = clock_handler2;
+
    /* Disable interrupts */
    disableInterrupts();
 
@@ -102,9 +107,10 @@ int start1(char *arg)
              mailbox id.
    Side Effects - initializes one element of the mail box array. 
    ----------------------------------------------------------------------- */
-int MboxCreate(int slots, int slot_size)
-{
-} /* MboxCreate */
+   int MboxCreate(int slots, int slot_size)
+   {
+      return 0;
+   } /* MboxCreate */
 
 
 /* ------------------------------------------------------------------------
@@ -116,9 +122,10 @@ int MboxCreate(int slots, int slot_size)
    Returns - actual size of msg if successful, -1 if invalid args.
    Side Effects - none.
    ----------------------------------------------------------------------- */
-int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
-{
-} /* MboxReceive */
+   int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
+   {
+      return 0;
+   } /* MboxReceive */
 
 
 /* ------------------------------------------------------------------------
@@ -129,9 +136,10 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
    Returns - zero if successful, -1 if invalid args.
    Side Effects - none.
    ----------------------------------------------------------------------- */
-int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
-{
-} /* MboxSend */
+   int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
+   {
+      return 0;
+   } /* MboxSend */
 
 
 
@@ -149,11 +157,15 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
    ----------------------------------------------------------------------- */
 int MboxCondReceive(int mailboxID, void *message, int max_message_size)
 {
+   // Call this since all the functions start with checking for the kernel mode 
+   check_kernel_mode("MboxCondReceive");
+
    // Disable interrupts
    disableInterrupts();
 
    //Access the mailbox
-   struct mailbox *mBox = &MailBoxTable[mailboxID];
+   int mail_idx = mailboxID % MAXMBOX;
+   struct mailbox *mBox = &MailBoxTable[mail_idx];
 
    // Return 1 if no message is available
    if (message == NULL)
@@ -165,6 +177,16 @@ int MboxCondReceive(int mailboxID, void *message, int max_message_size)
    if ( mailboxID > MAXMBOX || mailboxID <= -1 ) {
       return -1;
    }
+
+   // If the index of the mailbox is not blocked or null then receive it!
+   if (mBox->status == BLOCKED && mBox != NULL){
+      if (mBox->slots_used != 0){
+         return MboxReceive(mailboxID, message, max_message_size);
+      }
+      else { // Mailbox is empty
+         return -2;
+      }
+   } 
 
    // Take care of the zero slot mailbox
    if (mBox->slots_used == 0) {
@@ -193,47 +215,52 @@ int MboxCondReceive(int mailboxID, void *message, int max_message_size)
    Side Effects - none.
    Worked on by Arianna Boatner
    ----------------------------------------------------------------------- */
-int MboxCondSend(int mailboxID, void *message, int message_size)
-{
-
-   // Disable interrupts
-   disableInterrupts();
-
-   // Return 1 if no message is available
-   if (message == NULL)
+   int MboxCondSend(int mailboxID, void *message, int message_size)
    {
-      printf("No message is available.");
-      return 1;
-   }
+      // Call this since all the functions start with checking for the kernel mode 
+      check_kernel_mode("MboxCondSend");
+
+      // Disable interrupts
+      disableInterrupts();
+
+      // Return 1 if no message is available
+      if (message == NULL)
+      {
+         printf("No message is available.");
+         return 1;
+      }
    
-   //Access the mailbox
-   struct mailbox *mBox = &MailBoxTable[mailboxID];
+      //Access the mailbox
+      int mail_idx = mailboxID % MAXMBOX;
+      struct mailbox *mBox = &MailBoxTable[mail_idx];
 
-   // Return -1 if there are any illegal arguments
-   if ( mailboxID > MAXMBOX || mailboxID <= -1 || message_size < 0  || mBox->status == INACTIVE || message_size > mBox->max_slot_size) {
-      printf("There was illegal arguments. Returning -1");
-      return -1;
-   }
+      // Return -1 if there are any illegal arguments
+      if ( mBox->status == INACTIVE || message_size > mBox->max_slot_size ||
+         mailboxID > MAXMBOX || mailboxID <= -1 || message_size < 0  ) {
+         printf("There was illegal arguments. Returning -1");
+         return -1;
+      }
 
-   // Return -2 if the mailbox is full, the message is not sent,
-   // or no mailbox slots are available in the system
-   if (check_message_availability() == 0)
-   {
-      printf("Mailbox is full. Returning -2");
-      return -2;
-   }
+      // Return -2 if the mailbox is full, the message is not sent,
+      // or no mailbox slots are available in the system
+      if (check_message_availability() == 0)
+      {
+         printf("Mailbox is full. Returning -2");
+         return -2;
+      }
 
-   //Check for illegal arguments
-   if ( message_size < 0 || mBox->status == INACTIVE ||msg_size > box->slotSize) {
-        if (DEBUG2 && debugflag2) 
-            USLOSS_Console("MboxSend(): called with and invalid argument, returning -1\n", mbox_id);
-        enableInterrupts(); // enable interrupts
-        return -1;
-   }
+      //Check for illegal arguments
+      if ( message_size < 0 || mBox->status == INACTIVE || message_size > mBox->slotSize) {
+         if (DEBUG2 && debugflag2){ 
+            console("MboxSend(): called with and invalid argument, returning -1\n", mailboxID);
+            enableInterrupts(); // enable interrupts
+            return -1;
+         }
+      }
 
-   return 0;
+      return MboxSend(mailboxID, message, message_size);
 
-} /* MboxCondSend */
+   } /* MboxCondSend */
 
 
 
@@ -246,20 +273,89 @@ int MboxCondSend(int mailboxID, void *message, int message_size)
    Side Effects - none.
    Worked on by Arianna Boatner
    ----------------------------------------------------------------------- */
-int check_message_availability()
-{
-   for (int i = 0; i < MAXMBOX; ++i)
+   int check_message_availability()
    {
-      // This means a message is available, so return 1
-      if (MailBoxTable[i].status == READY)
+      // Call this since all the functions start with checking for the kernel mode 
+      check_kernel_mode("check_message_availability");
+
+      for (int i = 0; i < MAXMBOX; ++i)
       {
-         return 1; 
-      }  
+         // This means a message is available, so return 1
+         if (MailBoxTable[i].status == READY)
+         {
+            return 1; 
+         }  
+      }
+
+      // At this point, a message is not available so return 0
+      return 0;
    }
 
-   // At this point, a message is not available so return 0
-   return 0;
+
+/* ------------------------------------------------------------------------
+   Name         - check_kernel_mode
+   Purpose      - Check if we are in kernel mode
+   Parameters   - Name
+   Returns      - None
+   Side Effects - none.
+   Worked on by Arianna Boatner
+   ----------------------------------------------------------------------- */
+void check_kernel_mode(char *name)
+{
+   /* test if in kernel mode; halt if in user mode */   
+   if((PSR_CURRENT_MODE & psr_get()) == 0) {
+       // In user mode
+       console("User mode is on\n");
+       halt(1);
+    } 
+    else
+    {
+       /* We ARE in kernel mode */
+      psr_set( psr_get() & ~PSR_CURRENT_INT );
+   }
 }
+
+/* ------------------------------------------------------------------------
+   Name         - enableInterrupts
+   Purpose      - Enables the interrupts
+   Parameters   - Name
+   Returns      - None
+   Side Effects - none.
+   Worked on by Arianna Boatner
+   ----------------------------------------------------------------------- */
+ void enableInterrupts()
+{
+   /* turn the interrupts OFF iff we are in kernel mode */
+   if((PSR_CURRENT_MODE & psr_get()) == 0) {
+      //not in kernel mode
+      console("Not in kernel mode\n");
+      halt(1);
+   } else
+      /* We ARE in kernel mode */
+     psr_set( psr_get() | PSR_CURRENT_INT );
+
+} /* enableInterrupts */
+
+
+/* ------------------------------------------------------------------------
+   Name         - disableInterrupts
+   Purpose      - Disables the interrupts
+   Parameters   - Name
+   Returns      - None
+   Side Effects - none.
+   Worked on by Arianna Boatner
+   ----------------------------------------------------------------------- */
+  void disableInterrupts()
+ {
+   /* turn the interrupts OFF iff we are in kernel mode */
+   if((PSR_CURRENT_MODE & psr_get()) == 0) {
+      //not in kernel mode
+      console("Kernel Error: Not in kernel mode, may not disable interrupts\n");
+      halt(1);
+   } else
+      /* We ARE in kernel mode */
+      psr_set( psr_get() & ~PSR_CURRENT_INT );
+} /* disableInterrupts */
 
 
 
@@ -271,10 +367,31 @@ int check_message_availability()
    Side Effects - none.
    Worked on by Arianna Boatner
    ----------------------------------------------------------------------- */
-int check_io(){
-    return 0; 
-} /* check_io */
+   int check_io(){						
+      for (int i = 0; i < 7; i++){
+         if (MailBoxTable[i].slots_used > 0){
+            return 1;
+         }
+      }
+   } /* check_io */
 
+
+
+/* ------------------------------------------------------------------------
+   Name         - clock_handler2
+   Purpose      - Conditionally sends to the clock I/O mailbox every 
+                  5th clock interrupt .
+   Parameters   - dev  - The device we are handling
+                  unit - The unit we are handling 
+   Returns      - none.
+   Side Effects - none.
+   Worked on by Arianna Boatner
+   ----------------------------------------------------------------------- */
+void clock_handler2(int dev, void *unit)
+{
+   if (DEBUG2 && debugflag2)
+      console("clock_handler(): handler called\n");
+} /* clock_handler */
 
 // /* ------------------------------------------------------------------------
 //    Name         - disk_handler
@@ -286,22 +403,39 @@ int check_io(){
 //    Side Effects - None.
 //    Worked on by Arianna Boatner
 //   ----------------------------------------------------------------------- */
-// void disk_handler(int dev, void *punit)
-// {  
-//    int status;
-//    int result;
-//    int unit = (int)punit;
-      
-//    /* Sanity checks */ 
-//    //make sure the arguments dev and unit are OK, e.g. 
-//    //more checking if you see necessary
-   
-//    device_input(DISK_DEV, unit, &status);
-   
-//    result = MboxCondSend(disk_mbox[unit], &status, sizeof(status));
-//    //should do some checking on the returned result value
+   void disk_handler(int dev, void *punit)
+   {  
+      int status;
+      int result;
+      int unit = (int)punit;
 
-// } /* disk_handler */
+      if (DEBUG2 && debugflag2)
+         console("disk_handler(): handler called\n");
+      
+      /* Sanity checks */ 
+      //make sure the arguments dev and unit are OK, e.g.   
+      //more checking if you see necessary
+   
+      device_input(DISK_DEV, unit, &status);
+   
+      //result = MboxCondSend(disk_mbox[unit], &status, sizeof(status));
+      //should do some checking on the returned result value
+
+   } /* disk_handler */
+
+
+   void term_handler(int dev, void *unit)
+   {
+      if (DEBUG2 && debugflag2)
+         console("term_handler(): handler called\n");
+   } /* term_handler */
+
+
+   void syscall_handler(int dev, void *unit)
+   {
+      if (DEBUG2 && debugflag2)
+         console("syscall_handler(): handler called\n");
+   } /* syscall_handler */
 
 
 // int waitdevice(int type, int unit, int ∗status) { 

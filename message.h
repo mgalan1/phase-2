@@ -1,7 +1,8 @@
 #define DEBUG2 1
 
 typedef struct mail_slot *slot_ptr;
-typedef struct mailbox mail_box;
+typedef struct mailbox   mail_box;
+typedef struct mailbox   *mail_box_ptr;
 typedef struct mbox_proc *mbox_proc_ptr;
 
 // Added in by Arianna 
@@ -18,6 +19,9 @@ struct mailbox {
    int           num_slots;
    int           max_slot_size;
    int           slots_used;
+   int           slotSize;
+   int           sentBlockCount;
+   int           receivedBlockCount;
    struct        mail_slot *my_slots;
    struct        mail_slot *block_procs;
    /* other items as needed... */
@@ -46,6 +50,8 @@ union psr_values {
 
 
 /* Some useful constants */
-#define READY   0
-#define BLOCKED 1
 #define INACTIVE -1
+#define READY     0
+#define BLOCKED   1
+#define RELEASED  2
+#define OCCUPIED  3
