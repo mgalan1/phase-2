@@ -1,10 +1,5 @@
 #define DEBUG2 1
 
-typedef struct mail_slot *slot_ptr;
-typedef struct mailbox   mail_box;
-typedef struct mailbox   *mail_box_ptr;
-typedef struct mbox_proc *mbox_proc_ptr;
-
 // Added in by Arianna 
 // This struct is used to keep track of blocked processes on a mailbox
 struct mbox_proc {
@@ -48,6 +43,20 @@ union psr_values {
    unsigned int integer_part;
 };
 
+typedef struct mailbox m_box;
+typedef struct mail_slot m_slot;
+typedef struct mbox_proc m_proc;
+
+// These are pointers to the struct themselves, which we may or may not use later but I just replaced them with regular
+// typedef names so we could initialize the global struct arrays in phase2.c without using
+// struct mail_box somemailbox;
+// Instead, we can use just
+// m_box somemailbox;
+
+// typedef struct mail_slot *slot_ptr;
+// //typedef struct mailbox   mail_box;
+// typedef struct mailbox   *mail_box_ptr;
+// typedef struct mbox_proc *mbox_proc_ptr;
 
 /* Some useful constants */
 #define INACTIVE -1

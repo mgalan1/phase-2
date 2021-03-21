@@ -29,7 +29,11 @@ int nextMailboxID = 0;
 int clock;
 
 /* the mail boxes */
-mail_box MailBoxTable[MAXMBOX];
+m_box MailBoxTable[MAXMBOX];
+/* the process table for blocked processes*/
+m_proc BlockedProcTable[MAXPROC];
+/* the slot table*/
+m_slot SlotTable[MAXSLOTS];
 
 /* An error method to handle invalid syscalls */ 
 static void nullsys(sysargs *args){ 
@@ -108,9 +112,53 @@ int start1(char *arg)
    Side Effects - initializes one element of the mail box array. 
    ----------------------------------------------------------------------- */
    int MboxCreate(int slots, int slot_size)
-   {
+   {int j;
+   int init_arr_size=0;
+   int curr_arr_size=0;
+   for(j=0; j < MAXMBOX; j++){
+      if(MailBoxTable[j].slotSize != NULL && MailBoxTable[j].num_slots != NULL){
+            init_arr_size++;
+            
+      }
+   }
+   
+   curr_arr_size = init_arr_size;
+   
+   int i;
+   int index=0;
+   for(i=0; i < MAXMBOX; i++){
+      if(MailBoxTable[i].slotSize == NULL && MailBoxTable[i].num_slots == NULL){
+         index = i;
+      }
+   }
+   MailBoxTable[index].slotSize = slot_size;
+   MailBoxTable[index].num_slots = slots;
+   curr_arr_size++;
+   
+
+   if(curr_arr_size == init_arr_size){
+      // the current array size is the same as initial array size so no new mbox was created
+      return -1;
+   }
+   else{
       return 0;
-   } /* MboxCreate */
+   }
+} /* MboxCreate */
+
+/* ------------------------------------------------------------------------
+   Name - MboxRelease
+   Purpose - gets a mailbox by id and releases it. any process waiting on 
+   mailbox should be zap'd. 
+   Parameters - mailbox id to be marked as released
+   Returns - -3 if process was zap'd while releasing mailbox, 
+   -1 to indicate that no mailbox with this id is in use, 0 if 
+   successfully released
+   Side Effects - marks one mailbox as released, zaps blocked processes 
+   ----------------------------------------------------------------------- */
+
+int MboxRelease(int mailboxID){
+
+} /* MboxRelease */
 
 
 /* ------------------------------------------------------------------------
